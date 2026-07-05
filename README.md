@@ -10,6 +10,7 @@ Built with Three.js and inspired by retro-futuristic cyberpunk aesthetics, Commi
 docs/banner.png
 
 ---
+<img width="1898" height="896" alt="image" src="https://github.com/user-attachments/assets/1e4c9de5-e5b4-4ae9-9e47-816b4bd57641" />
 
 ## ✨ Features
 
