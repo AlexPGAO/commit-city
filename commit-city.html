@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>COMMIT CITY // GitHub Contribution Cityscape</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+:root{
+  --bg:#0a0f1a;
+  --panel:rgba(10,18,32,0.78);
+  --green:#00ff99;
+  --blue:#4d9fff;
+  --pink:#ff2fd6;
+  --red:#ff3860;
+  --amber:#ffb347;
+  --dim:#3d5a72;
+  --text:#b8d4e3;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;overflow:hidden;background:var(--bg);font-family:'Share Tech Mono',monospace;color:var(--text);}
+#city{position:fixed;inset:0;cursor:grab;}
+#city.dragging{cursor:grabbing;}
+.scanlines{position:fixed;inset:0;pointer-events:none;z-index:5;
+  background:repeating-linear-gradient(0deg, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 3px, rgba(0,255,153,0.015) 3px, rgba(0,255,153,0.015) 4px);}
+.hud{position:fixed;z-index:10;}
+
+#hdr{top:16px;left:20px;max-width:min(560px,92vw);}
+#hdr h1{color:var(--green);font-size:24px;font-weight:400;letter-spacing:3px;text-shadow:0 0 14px rgba(0,255,153,0.55);}
+#hdr h1 .cursor{display:inline-block;width:11px;height:20px;background:var(--green);margin-left:6px;vertical-align:-2px;animation:blink 1.1s steps(1) infinite;}
+#hdr .sub{color:var(--blue);font-size:11px;letter-spacing:2px;margin:4px 0 10px;}
+@keyframes blink{50%{opacity:0;}}
+.console{background:var(--panel);border:1px solid rgba(0,255,153,0.18);padding:12px;backdrop-filter:blur(4px);}
+.inrow{display:flex;gap:8px;flex-wrap:wrap;}
+#user{flex:1;min-width:140px;background:#070c15;border:1px solid var(--dim);color:var(--green);
+  font-family:inherit;font-size:13px;letter-spacing:1px;padding:8px 10px;outline:none;}
+#user:focus{border-color:var(--green);}
+.btn{background:transparent;border:1px solid var(--dim);color:var(--text);font-family:inherit;
+  font-size:11px;letter-spacing:1px;padding:8px 10px;cursor:pointer;transition:all .15s;white-space:nowrap;}
+.btn:hover{border-color:var(--green);color:var(--green);}
+.btn.on{border-color:var(--blue);color:var(--blue);}
+.btn:focus-visible{outline:2px solid var(--green);outline-offset:2px;}
+#status{font-size:10.5px;letter-spacing:1px;margin-top:9px;line-height:1.6;color:var(--dim);}
+#status .badge{padding:1px 7px;border:1px solid;letter-spacing:2px;}
+#status .badge.live{color:var(--green);border-color:var(--green);}
+#status .badge.demo{color:var(--amber);border-color:var(--amber);}
+#status .badge.import{color:var(--blue);border-color:var(--blue);}
+#status .badge.err{color:var(--red);border-color:var(--red);}
+#status .badge.load{color:var(--blue);border-color:var(--blue);animation:blink 1s steps(1) infinite;}
+
+#stats{top:16px;right:20px;width:262px;background:var(--panel);border:1px solid rgba(0,255,153,0.18);
+  padding:12px 14px;backdrop-filter:blur(4px);}
+#stats .ph{font-size:10px;letter-spacing:2px;color:var(--blue);margin-bottom:8px;}
+#stats .row{display:flex;justify-content:space-between;font-size:11.5px;line-height:2;}
+#stats .row .k{color:var(--dim);letter-spacing:1px;}
+#stats .row .v{color:var(--green);text-shadow:0 0 8px rgba(0,255,153,0.35);}
+#langChart{margin-top:8px;}
+#langChart .lrow{display:flex;align-items:center;gap:8px;font-size:10px;line-height:2;}
+#langChart .lrow .k{width:86px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0;}
+#langChart .lrow .bar{flex:1;height:7px;background:#070c15;border:1px solid rgba(61,90,114,0.5);}
+#langChart .lrow .bar i{display:block;height:100%;box-shadow:0 0 7px currentColor;transition:width .5s ease;}
+#langChart .lrow .n{width:32px;text-align:right;color:var(--dim);flex-shrink:0;}
+
+#legend{bottom:16px;right:20px;text-align:right;font-size:10.5px;letter-spacing:1px;
+  background:var(--panel);border:1px solid rgba(0,255,153,0.12);padding:10px 13px;backdrop-filter:blur(4px);max-width:250px;}
+#legend .li{line-height:1.9;}
+#legend .dot{display:inline-block;width:8px;height:8px;margin-right:7px;}
+#legend .note{margin-top:7px;color:var(--dim);font-size:9.5px;line-height:1.6;}
+#foot{bottom:16px;left:20px;font-size:10px;color:var(--dim);letter-spacing:1px;line-height:1.7;
+  background:var(--panel);border:1px solid rgba(77,159,255,0.14);padding:8px 12px;backdrop-filter:blur(4px);max-width:min(460px,60vw);}
+
+#tip{position:fixed;z-index:20;pointer-events:none;display:none;background:var(--panel);
+  border:1px solid rgba(0,255,153,0.35);padding:6px 10px;font-size:11px;letter-spacing:1px;
+  color:var(--green);white-space:nowrap;}
+#tip .s{color:var(--text);display:block;font-size:10px;}
+
+input[type=file]{display:none;}
+
+@media (max-width:820px){
+  #stats{display:none;} #legend{display:none;}
+  #hdr h1{font-size:18px;}
+  #foot{right:12px;left:12px;bottom:12px;max-width:none;}
+}
+</style>
+</head>
+<body>
+
+<canvas id="city"></canvas>
+<div class="scanlines"></div>
+<div id="tip"></div>
+
+<div class="hud" id="hdr">
+  <h1>COMMIT CITY<span class="cursor"></span></h1>
+  <div class="sub">// YOUR GITHUB HISTORY AS A CYBERPUNK SKYLINE</div>
+  <div class="console">
+    <div class="inrow">
+      <input id="user" spellcheck="false" autocomplete="off" placeholder="github username...">
+      <button class="btn" id="goBtn">[ RENDER CITY ]</button>
+      <button class="btn" id="demoBtn">[ DEMO ]</button>
+      <button class="btn" id="impBtn">[ IMPORT JSON ]</button>
+      <button class="btn on" id="rainBtn">[ RAIN: ON ]</button>
+      <input type="file" id="impFile" accept=".json,application/json">
+    </div>
+    <div id="status"><span class="badge demo">DEMO</span> generated sample city. enter a username to build a real one.</div>
+  </div>
+</div>
+
+<div class="hud" id="stats">
+  <div class="ph">// CITY REGISTRY</div>
+  <div class="row"><span class="k">TOTAL COMMITS</span><span class="v" id="sTotal">0</span></div>
+  <div class="row"><span class="k">DAYS TRACKED</span><span class="v" id="sDays">0</span></div>
+  <div class="row"><span class="k">LONGEST STREAK</span><span class="v" id="sStreak">0</span></div>
+  <div class="row"><span class="k">MOST ACTIVE DAY</span><span class="v" id="sPeak">&mdash;</span></div>
+  <div class="ph" style="margin-top:10px;">// LANGUAGE DISTRICTS</div>
+  <div id="langChart"></div>
+</div>
+
+<div class="hud" id="legend">
+  <div id="legendRows"></div>
+  <div class="note">HEIGHT = COMMITS &middot; GLOW = STREAK &middot; DARK LOTS = ZERO-COMMIT DAYS. GAPS ARE PART OF THE SKYLINE.</div>
+</div>
+
+<div class="hud" id="foot">
+  DRAG TO ORBIT &middot; SCROLL TO ZOOM &middot; HOVER A BUILDING<br>
+  LIVE MODE: FULL-YEAR CONTRIBUTION CALENDAR (PUBLIC MIRROR API) + LANGUAGE MIX FROM YOUR PUBLIC REPOS. NO TOKEN, NOTHING STORED.
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+'use strict';
+
+/* ============================================================
+   PALETTE
+============================================================ */
+const LANG_COLORS = {
+  'JavaScript':'#4d9fff', 'TypeScript':'#7ab8ff', 'Python':'#00ff99',
+  'HTML':'#ff7849', 'CSS':'#c17bff', 'Java':'#ffb347', 'C':'#ff3860',
+  'C++':'#ff3860', 'C#':'#b04dff', 'Go':'#00e5ff', 'Rust':'#ff9e64',
+  'Shell':'#9fff4d', 'Ruby':'#ff4d6d', 'PHP':'#8a9fff', 'Other':'#5f7d9c'
+};
+const langColor = l => LANG_COLORS[l] || LANG_COLORS['Other'];
+
+document.getElementById('legendRows').innerHTML =
+  Object.entries(LANG_COLORS).slice(0,10).map(([l,c]) =>
+    `<div class="li"><span class="dot" style="background:${c};box-shadow:0 0 6px ${c};"></span>${l.toUpperCase()}</div>`
+  ).join('');
+
+/* ============================================================
+   SCENE
+============================================================ */
+const canvas = document.getElementById('city');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0x070b14);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x0a0f1a, 0.019);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth/window.innerHeight, 0.1, 500);
+
+scene.add(new THREE.AmbientLight(0x243550, 0.85));
+const key = new THREE.DirectionalLight(0x8ab0ff, 0.45); key.position.set(30,50,20); scene.add(key);
+const neonA = new THREE.PointLight(0xff2fd6, 1.1, 110); neonA.position.set(-18,12,-14); scene.add(neonA);
+const neonB = new THREE.PointLight(0x00ff99, 0.9, 110); neonB.position.set(20,9,16); scene.add(neonB);
+const neonC = new THREE.PointLight(0x4d9fff, 0.7, 110); neonC.position.set(0,16,-24); scene.add(neonC);
+
+const UNIT_BOX = new THREE.BoxGeometry(1,1,1);
+const UNIT_EDGES = new THREE.EdgesGeometry(UNIT_BOX);
+
+function discTexture(){
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d');
+  const grd = g.createRadialGradient(32,32,0,32,32,32);
+  grd.addColorStop(0,'rgba(255,255,255,1)');
+  grd.addColorStop(0.35,'rgba(255,255,255,0.85)');
+  grd.addColorStop(1,'rgba(255,255,255,0)');
+  g.fillStyle = grd; g.fillRect(0,0,64,64);
+  return new THREE.CanvasTexture(c);
+}
+const DISC = discTexture();
+
+/* stars */
+(function(){
+  const n = 700, pos = new Float32Array(n*3);
+  for(let i=0;i<n;i++){
+    const u = Math.random()*0.5 + 0.08;           /* keep above horizon */
+    const th = Math.random()*Math.PI*2;
+    const s = Math.sqrt(1-u*u), d = 180 + Math.random()*120;
+    pos.set([s*Math.cos(th)*d, u*d, s*Math.sin(th)*d], i*3);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  scene.add(new THREE.Points(g, new THREE.PointsMaterial({
+    color:0x9fc4e8, size:0.7, map:DISC, transparent:true, opacity:0.45, depthWrite:false
+  })));
+})();
+
+/* ============================================================
+   LIT WINDOW TEXTURES — 3 random patterns x height buckets
+============================================================ */
+const WIN_CANVASES = [];
+for(let v=0; v<3; v++){
+  const c = document.createElement('canvas'); c.width = 96; c.height = 192;
+  const g = c.getContext('2d');
+  g.fillStyle = '#000'; g.fillRect(0,0,96,192);
+  const COLS = 4, ROWS = 8, cw = 96/COLS, ch = 192/ROWS;
+  for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++){
+    const lit = Math.random() < 0.5;
+    g.fillStyle = lit ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.05)';
+    g.fillRect(x*cw + cw*0.22, y*ch + ch*0.22, cw*0.56, ch*0.5);
+  }
+  WIN_CANVASES.push(c);
+}
+const winTexCache = new Map();
+function winTex(variant, bucket){
+  const k = variant + ':' + bucket;
+  if(!winTexCache.has(k)){
+    const t = new THREE.CanvasTexture(WIN_CANVASES[variant]);
+    t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(1, bucket);
+    winTexCache.set(k, t);
+  }
+  return winTexCache.get(k);
+}
+
+/* material caches */
+const matCache = new Map(), edgeCache = new Map(), mirrorCache = new Map(), capCache = new Map();
+const TIER_GLOW = [0.5, 0.95, 1.5];
+function buildingMat(lang, tier, variant, bucket){
+  const k = `${lang}|${tier}|${variant}|${bucket}`;
+  if(!matCache.has(k)){
+    matCache.set(k, new THREE.MeshStandardMaterial({
+      color:0x0a1322,
+      emissive:new THREE.Color(langColor(lang)),
+      emissiveIntensity:TIER_GLOW[tier],
+      emissiveMap:winTex(variant, bucket),
+      metalness:0.3, roughness:0.6
+    }));
+  }
+  return matCache.get(k);
+}
+function edgeMat(lang, tier){
+  const k = lang+tier;
+  if(!edgeCache.has(k)) edgeCache.set(k, new THREE.LineBasicMaterial({
+    color:new THREE.Color(langColor(lang)), transparent:true, opacity:0.3 + tier*0.3
+  }));
+  return edgeCache.get(k);
+}
+function mirrorMat(lang, tier){
+  const k = lang+tier;
+  if(!mirrorCache.has(k)) mirrorCache.set(k, new THREE.MeshBasicMaterial({
+    color:new THREE.Color(langColor(lang)), transparent:true, opacity:0.10 + tier*0.05, depthWrite:false
+  }));
+  return mirrorCache.get(k);
+}
+function capMat(lang){
+  if(!capCache.has(lang)) capCache.set(lang, new THREE.MeshBasicMaterial({color:new THREE.Color(langColor(lang))}));
+  return capCache.get(lang);
+}
+const rubbleMat = new THREE.MeshStandardMaterial({color:0x0e1420, emissive:0x220d14, emissiveIntensity:0.55, roughness:0.95});
+const antennaMat = new THREE.MeshBasicMaterial({color:0x1a2638});
+
+function labelSprite(text){
+  const c = document.createElement('canvas'); c.width = 256; c.height = 56;
+  const g = c.getContext('2d');
+  g.font = '26px "Share Tech Mono", monospace';
+  g.fillStyle = 'rgba(0,255,153,0.85)';
+  g.shadowColor = 'rgba(0,255,153,0.8)'; g.shadowBlur = 8;
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(text, 128, 28);
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({
+    map:new THREE.CanvasTexture(c), transparent:true, depthWrite:false
+  }));
+  s.scale.set(4.4, 0.96, 1);
+  return s;
+}
+
+/* deterministic per-date random, so colors don't reshuffle on reload */
+function dateRand(iso){
+  let h = 2166136261;
+  for(let i=0;i<iso.length;i++){ h ^= iso.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0) / 4294967295;
+}
+
+/* ============================================================
+   CITY BUILD / TEARDOWN
+============================================================ */
+let cityGroup=null, mirrorGroup=null, trafficPts=null, gridHelper=null, groundPlane=null;
+let buildingMeshes = [], beacons = [], labelTextures = [];
+let cityBounds = {x:20, z:14, h:6};
+
+function clearCity(){
+  [cityGroup, mirrorGroup, trafficPts, gridHelper, groundPlane].forEach(o => { if(o) scene.remove(o); });
+  if(trafficPts){ trafficPts.geometry.dispose(); trafficPts.material.dispose(); }
+  cityGroup = mirrorGroup = trafficPts = gridHelper = groundPlane = null;
+  buildingMeshes = []; beacons = [];
+  labelTextures.forEach(t => t.dispose()); labelTextures = [];
+}
+
+function heightFor(count){ return count === 0 ? 0 : 0.5 + Math.min(count, 25) * 0.36; }
+function tierFor(streak){ return streak >= 7 ? 2 : (streak >= 3 ? 1 : 0); }
+
+function buildCity(days){
+  clearCity();
+  cityGroup = new THREE.Group();
+  mirrorGroup = new THREE.Group();
+
+  const months = [];
+  let cur = null;
+  for(const d of days){
+    const key = d.date.slice(0,7);
+    if(!cur || cur.key !== key){ cur = {key, days:[]}; months.push(cur); }
+    cur.days.push(d);
+  }
+
+  const CELL = 1.15, FOOT = 0.8, GAP = 3.0, PER_ROW = Math.min(months.length, 4);
+  const dInfo = months.map(m => {
+    const first = new Date(m.days[0].date + 'T00:00:00Z');
+    const offset = first.getUTCDay();
+    const weeks = Math.ceil((offset + m.days.length) / 7);
+    return {m, offset, weeks, w: weeks*CELL};
+  });
+
+  const rows = [];
+  for(let i=0; i<dInfo.length; i+=PER_ROW) rows.push(dInfo.slice(i, i+PER_ROW));
+  const rowWidths = rows.map(r => r.reduce((s,d)=>s+d.w,0) + GAP*(r.length-1));
+  const totalW = Math.max(...rowWidths);
+  const totalD = rows.length * (7*CELL) + (rows.length-1)*GAP;
+
+  let z0 = -totalD/2;
+  let maxH = 1;
+  for(const row of rows){
+    const rw = row.reduce((s,d)=>s+d.w,0) + GAP*(row.length-1);
+    let x0 = -rw/2;
+    for(const info of row){
+      const dt = new Date(info.m.days[0].date + 'T00:00:00Z');
+      const lbl = labelSprite(dt.toLocaleDateString('en-US',{month:'short', year:'numeric', timeZone:'UTC'}).toUpperCase());
+      lbl.position.set(x0 + info.w/2, 0.55, z0 + 7*CELL + 0.7);
+      labelTextures.push(lbl.material.map);
+      cityGroup.add(lbl);
+
+      info.m.days.forEach((day, di) => {
+        const slot = info.offset + di;
+        const wx = Math.floor(slot / 7), wz = slot % 7;
+        const x = x0 + wx*CELL + CELL/2;
+        const z = z0 + wz*CELL + CELL/2;
+        const h = heightFor(day.count);
+
+        if(h === 0){
+          const slab = new THREE.Mesh(UNIT_BOX, rubbleMat);
+          slab.scale.set(FOOT, 0.06, FOOT);
+          slab.position.set(x, 0.03, z);
+          slab.userData = day;
+          cityGroup.add(slab);
+          buildingMeshes.push(slab);
+          return;
+        }
+        maxH = Math.max(maxH, h);
+        const tier = tierFor(day.streak);
+        const rnd = dateRand(day.date);
+        const variant = (rnd * 3) | 0;
+        const bucket = Math.max(1, Math.min(6, Math.round(h / 1.1)));
+
+        const b = new THREE.Mesh(UNIT_BOX, buildingMat(day.lang, tier, variant, bucket));
+        b.scale.set(FOOT, h, FOOT);
+        b.position.set(x, h/2, z);
+        b.userData = day;
+        cityGroup.add(b);
+        buildingMeshes.push(b);
+
+        const e = new THREE.LineSegments(UNIT_EDGES, edgeMat(day.lang, tier));
+        e.scale.copy(b.scale); e.position.copy(b.position);
+        cityGroup.add(e);
+
+        /* glowing rooftop cap */
+        const cap = new THREE.Mesh(UNIT_BOX, capMat(day.lang));
+        cap.scale.set(FOOT*1.02, 0.035, FOOT*1.02);
+        cap.position.set(x, h + 0.018, z);
+        cityGroup.add(cap);
+
+        /* antennas + blinking beacons on the tall ones */
+        if(h > 3.4){
+          const ant = new THREE.Mesh(UNIT_BOX, antennaMat);
+          ant.scale.set(0.035, 0.6, 0.035);
+          ant.position.set(x, h + 0.3, z);
+          cityGroup.add(ant);
+          const spr = new THREE.Sprite(new THREE.SpriteMaterial({
+            map:DISC, color:0xff3860, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending
+          }));
+          spr.scale.set(0.34, 0.34, 1);
+          spr.position.set(x, h + 0.64, z);
+          cityGroup.add(spr);
+          beacons.push({spr, phase: rnd * Math.PI * 2});
+        }
+
+        /* wet-street reflection */
+        const m = new THREE.Mesh(UNIT_BOX, mirrorMat(day.lang, tier));
+        m.scale.set(FOOT, h, FOOT);
+        m.position.set(x, -h/2, z);
+        mirrorGroup.add(m);
+      });
+      x0 += info.w + GAP;
+    }
+    z0 += 7*CELL + GAP;
+  }
+
+  cityBounds = {x: totalW/2 + 4, z: totalD/2 + 4, h: maxH};
+
+  mirrorGroup.renderOrder = 0;
+  scene.add(mirrorGroup);
+  groundPlane = new THREE.Mesh(
+    new THREE.PlaneGeometry(totalW + 40, totalD + 40),
+    new THREE.MeshBasicMaterial({color:0x0a0f1a, transparent:true, opacity:0.76, depthWrite:false})
+  );
+  groundPlane.rotation.x = -Math.PI/2;
+  groundPlane.renderOrder = 1;
+  scene.add(groundPlane);
+
+  gridHelper = new THREE.GridHelper(Math.max(totalW,totalD) + 40, 52, 0x00cc88, 0x14304a);
+  gridHelper.material.transparent = true;
+  gridHelper.material.opacity = 0.26;
+  gridHelper.position.y = 0.01;
+  scene.add(gridHelper);
+
+  cityGroup.renderOrder = 2;
+  scene.add(cityGroup);
+
+  buildTraffic();
+  camR = Math.max(cityBounds.x, cityBounds.z) * 1.9 + 6;
+}
+
+/* flying traffic */
+let trafficData = null;
+function buildTraffic(){
+  const N = 52;
+  const pos = new Float32Array(N*3);
+  const col = new Float32Array(N*3);
+  trafficData = [];
+  const palette = [0xff2fd6, 0x4d9fff, 0x00ff99];
+  for(let i=0;i<N;i++){
+    const alongX = Math.random() < 0.5;
+    trafficData.push({
+      alongX,
+      speed: (0.9 + Math.random()*2.4) * (Math.random()<0.5 ? 1 : -1),
+      lane: (Math.random()*2-1) * (alongX ? cityBounds.z : cityBounds.x) * 0.9,
+      alt: 0.4 + Math.random() * cityBounds.h * 0.95,
+      p: (Math.random()*2-1) * (alongX ? cityBounds.x : cityBounds.z)
+    });
+    const c = new THREE.Color(palette[i % 3]);
+    col.set([c.r, c.g, c.b], i*3);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  g.setAttribute('color', new THREE.BufferAttribute(col,3));
+  trafficPts = new THREE.Points(g, new THREE.PointsMaterial({
+    size:0.3, vertexColors:true, transparent:true, opacity:0.9,
+    map:DISC, blending:THREE.AdditiveBlending, depthWrite:false
+  }));
+  scene.add(trafficPts);
+}
+
+/* ============================================================
+   RAIN
+============================================================ */
+const RAIN_N = 650;
+let rainOn = true;
+const rainGeo = new THREE.BufferGeometry();
+const rainPos = new Float32Array(RAIN_N * 6);
+const rainSpd = new Float32Array(RAIN_N);
+for(let i=0;i<RAIN_N;i++){
+  const x = (Math.random()*2-1)*46, z = (Math.random()*2-1)*36, y = Math.random()*18;
+  rainPos.set([x, y, z, x, y+0.38, z], i*6);
+  rainSpd[i] = 9 + Math.random()*8;
+}
+rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos,3));
+const rain = new THREE.LineSegments(rainGeo, new THREE.LineBasicMaterial({
+  color:0x6fa8d8, transparent:true, opacity:0.22
+}));
+scene.add(rain);
+
+document.getElementById('rainBtn').addEventListener('click', function(){
+  rainOn = !rainOn;
+  rain.visible = rainOn;
+  this.textContent = rainOn ? '[ RAIN: ON ]' : '[ RAIN: OFF ]';
+  this.classList.toggle('on', rainOn);
+});
+
+/* ============================================================
+   DATA
+============================================================ */
+function finalize(days){
+  days.sort((a,b) => a.date < b.date ? -1 : 1);
+  let streak = 0;
+  for(const d of days){
+    streak = d.count > 0 ? streak + 1 : 0;
+    d.streak = streak;
+  }
+  return days;
+}
+function fillRange(map, fromISO, toISO){
+  const out = [];
+  const cur = new Date(fromISO + 'T00:00:00Z');
+  const end = new Date(toISO + 'T00:00:00Z');
+  while(cur <= end){
+    const iso = cur.toISOString().slice(0,10);
+    const e = map.get(iso);
+    out.push({date: iso, count: e ? e.count : 0, lang: e ? e.lang : 'Other'});
+    cur.setUTCDate(cur.getUTCDate()+1);
+  }
+  return out;
+}
+
+function demoDays(){
+  const map = new Map();
+  const today = new Date();
+  const langs = ['JavaScript','Python','HTML','CSS','Shell','TypeScript'];
+  const vacStart = 90 + (Math.random()*120|0);
+  for(let i=364; i>=0; i--){
+    const d = new Date(today); d.setUTCDate(d.getUTCDate()-i);
+    const iso = d.toISOString().slice(0,10);
+    const wd = d.getUTCDay();
+    if(i <= vacStart && i > vacStart-14) continue;
+    const weekend = (wd === 0 || wd === 6);
+    if(Math.random() > (weekend ? 0.38 : 0.74)) continue;
+    let count = 1 + (Math.random()*(weekend?4:7)|0);
+    if(Math.random() < 0.05) count += 8 + (Math.random()*10|0);
+    map.set(iso, {count, lang: langs[(d.getUTCMonth() + (wd>3?1:0)) % langs.length]});
+  }
+  const from = new Date(today); from.setUTCDate(from.getUTCDate()-364);
+  return finalize(fillRange(map, from.toISOString().slice(0,10), today.toISOString().slice(0,10)));
+}
+
+async function fetchJSON(url, opts){
+  let r;
+  try{ r = await fetch(url, opts); }
+  catch(e){ throw new Error('NETWORK BLOCKED OR OFFLINE — if you are previewing inside a chat sandbox, download the file and open it locally or host it.'); }
+  if(r.status === 404) throw new Error('USER NOT FOUND');
+  if(r.status === 403) throw new Error('RATE LIMITED — try again in a bit.');
+  if(!r.ok) throw new Error('API ERROR ' + r.status);
+  return r.json();
+}
+const gh = path => fetchJSON('https://api.github.com' + path, {headers:{'Accept':'application/vnd.github+json'}});
+
+/*
+  Live pipeline:
+  1) full-year contribution calendar via jogruber's public mirror of the GitHub
+     contribution graph (CORS-enabled, no token)
+  2) language mix from the user's public repos (1 REST call — repo objects
+     already include a `language` field)
+  3) recent per-day dominant language from public push events (best effort)
+  Days with no exact language info get colored from the user's overall mix,
+  deterministically per-date, and the UI says so.
+*/
+async function liveDays(user){
+  const u = encodeURIComponent(user);
+
+  const contrib = await fetchJSON(`https://github-contributions-api.jogruber.de/v4/${u}?y=last`);
+  if(!contrib || !Array.isArray(contrib.contributions) || !contrib.contributions.length)
+    throw new Error('NO CONTRIBUTION DATA RETURNED');
+
+  /* language weights from public repos — best effort, never fatal */
+  let weights = [];
+  try{
+    const repos = await gh(`/users/${u}/repos?sort=pushed&per_page=30`);
+    const cnt = new Map();
+    for(const r of repos) if(r.language) cnt.set(r.language, (cnt.get(r.language)||0)+1);
+    weights = [...cnt.entries()];
+  }catch(e){}
+  const totalW = weights.reduce((s,x)=>s+x[1], 0);
+  const langFor = iso => {
+    if(!totalW) return 'Other';
+    let r = dateRand(iso) * totalW;
+    for(const [l,w] of weights){ r -= w; if(r <= 0) return l; }
+    return weights[0][0];
+  };
+
+  /* exact per-day language for recent days — best effort, never fatal */
+  const exact = new Map();
+  try{
+    const repos2 = await gh(`/users/${u}/repos?sort=pushed&per_page=100`);
+    const repoLang = new Map(repos2.filter(r=>r.language).map(r => [r.full_name, r.language]));
+    let events = [];
+    for(let p=1; p<=2; p++){
+      const page = await gh(`/users/${u}/events/public?per_page=100&page=${p}`);
+      events = events.concat(page);
+      if(page.length < 100) break;
+    }
+    const dayRepo = new Map();
+    for(const e of events){
+      if(e.type !== 'PushEvent' || !e.repo) continue;
+      const iso = e.created_at.slice(0,10);
+      const n = (e.payload && e.payload.size) || 1;
+      if(!dayRepo.has(iso)) dayRepo.set(iso, new Map());
+      const m = dayRepo.get(iso);
+      m.set(e.repo.name, (m.get(e.repo.name)||0) + n);
+    }
+    for(const [iso, m] of dayRepo){
+      let best = -1, lang = null;
+      for(const [repo, n] of m) if(n > best && repoLang.has(repo)){ best = n; lang = repoLang.get(repo); }
+      if(lang) exact.set(iso, lang);
+    }
+  }catch(e){}
+
+  const days = contrib.contributions.map(c => ({
+    date: c.date,
+    count: c.count,
+    lang: c.count > 0 ? (exact.get(c.date) || langFor(c.date)) : 'Other'
+  }));
+  return {days: finalize(days), approx: totalW > 0 && exact.size < days.filter(d=>d.count>0).length};
+}
+
+function importDays(json){
+  if(!Array.isArray(json)) throw new Error('EXPECTED A JSON ARRAY');
+  const map = new Map();
+  for(const row of json){
+    if(!row || !/^\d{4}-\d{2}-\d{2}$/.test(row.date)) continue;
+    map.set(row.date, {count: Math.max(0, parseInt(row.count,10)||0), lang: row.lang || 'Other'});
+  }
+  if(map.size < 2) throw new Error('NO VALID ROWS. FORMAT: [{"date":"2026-01-15","count":4,"lang":"Python"}]');
+  const isos = [...map.keys()].sort();
+  return finalize(fillRange(map, isos[0], isos[isos.length-1]));
+}
+
+/* ============================================================
+   HUD
+============================================================ */
+const statusEl = document.getElementById('status');
+function setStatus(mode, msg){
+  const cls = {live:'live', demo:'demo', import:'import', err:'err', load:'load'}[mode];
+  const label = {live:'LIVE', demo:'DEMO', import:'IMPORTED', err:'ERROR', load:'WORKING'}[mode];
+  statusEl.innerHTML = `<span class="badge ${cls}">${label}</span> ${msg}`;
+}
+
+function updateStats(days){
+  const active = days.filter(d => d.count > 0);
+  const totalC = active.reduce((s,d)=>s+d.count, 0);
+  const peak = active.reduce((m,d)=> d.count > m.count ? d : m, {count:0, date:null});
+  const streak = days.reduce((m,d)=>Math.max(m, d.streak), 0);
+  document.getElementById('sTotal').textContent = totalC.toLocaleString();
+  document.getElementById('sDays').textContent = days.length;
+  document.getElementById('sStreak').textContent = streak + 'D';
+  document.getElementById('sPeak').textContent = peak.date
+    ? `${peak.count} (${new Date(peak.date+'T00:00:00Z').toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'}).toUpperCase()})`
+    : '\u2014';
+
+  const byLang = new Map();
+  for(const d of active) byLang.set(d.lang, (byLang.get(d.lang)||0) + d.count);
+  const top = [...byLang.entries()].sort((a,b)=>b[1]-a[1]).slice(0,6);
+  document.getElementById('langChart').innerHTML = top.map(([l,n]) => {
+    const c = langColor(l);
+    const pct = totalC ? (n/totalC*100) : 0;
+    return `<div class="lrow"><span class="k">${l.toUpperCase()}</span>
+      <div class="bar"><i style="width:${pct}%;background:${c};color:${c}"></i></div>
+      <span class="n">${Math.round(pct)}%</span></div>`;
+  }).join('') || '<div style="color:var(--dim);font-size:10px;">no activity</div>';
+}
+
+/* ============================================================
+   ACTIONS
+============================================================ */
+async function go(){
+  const user = document.getElementById('user').value.trim().replace(/^@/,'');
+  if(!user) return;
+  setStatus('load', `pulling contribution calendar for ${user}...`);
+  try{
+    const {days, approx} = await liveDays(user);
+    buildCity(days); updateStats(days);
+    setStatus('live', `${user} &middot; full-year public contribution calendar.` +
+      (approx ? ' colors beyond recent days reflect your overall public language mix, not per-day data.' : ''));
+  }catch(e){
+    /* keep whatever city is on screen; just explain the failure */
+    setStatus('err', e.message);
+  }
+}
+document.getElementById('goBtn').addEventListener('click', go);
+document.getElementById('user').addEventListener('keydown', e => { if(e.key === 'Enter') go(); });
+document.getElementById('demoBtn').addEventListener('click', () => {
+  const days = demoDays();
+  buildCity(days); updateStats(days);
+  setStatus('demo', 'generated sample city (365 days, includes an honest vacation gap).');
+});
+document.getElementById('impBtn').addEventListener('click', () => document.getElementById('impFile').click());
+document.getElementById('impFile').addEventListener('change', function(){
+  const f = this.files[0]; if(!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    try{
+      const days = importDays(JSON.parse(rd.result));
+      buildCity(days); updateStats(days);
+      setStatus('import', `${f.name} &middot; ${days.length} days imported.`);
+    }catch(e){ setStatus('err', e.message); }
+  };
+  rd.readAsText(f);
+  this.value = '';
+});
+
+/* ============================================================
+   CAMERA + INTERACTION
+============================================================ */
+let camR = 34, camTheta = 0.7, camPhi = 0.6;
+let dragging = false, px=0, py=0, lastInteract = 0;
+
+canvas.addEventListener('pointerdown', e => {
+  dragging = true; px = e.clientX; py = e.clientY;
+  canvas.classList.add('dragging'); canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointermove', e => {
+  if(dragging){
+    camTheta -= (e.clientX - px) * 0.005;
+    camPhi = Math.max(0.12, Math.min(1.35, camPhi - (e.clientY - py) * 0.003));
+    px = e.clientX; py = e.clientY; lastInteract = performance.now();
+    tip.style.display = 'none';
+  } else hover(e);
+});
+const endDrag = () => { dragging = false; canvas.classList.remove('dragging'); };
+canvas.addEventListener('pointerup', endDrag);
+canvas.addEventListener('pointercancel', endDrag);
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  camR = Math.max(8, Math.min(160, camR * (1 + Math.sign(e.deltaY)*0.09)));
+}, {passive:false});
+
+const tip = document.getElementById('tip');
+const ray = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+let hovT = 0;
+function hover(e){
+  const now = performance.now();
+  if(now - hovT < 70) return;
+  hovT = now;
+  mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  ray.setFromCamera(mouse, camera);
+  const hit = ray.intersectObjects(buildingMeshes)[0];
+  if(hit){
+    const d = hit.object.userData;
+    const date = new Date(d.date + 'T00:00:00Z')
+      .toLocaleDateString('en-US',{weekday:'short', month:'short', day:'numeric', year:'numeric', timeZone:'UTC'}).toUpperCase();
+    tip.innerHTML = d.count === 0
+      ? `${date}<span class="s">EMPTY LOT — no commits</span>`
+      : `${date}<span class="s">${d.count} commit${d.count>1?'s':''} &middot; ${d.lang} &middot; streak day ${d.streak}</span>`;
+    tip.style.display = 'block';
+    tip.style.left = Math.min(e.clientX + 14, window.innerWidth - 260) + 'px';
+    tip.style.top = (e.clientY + 14) + 'px';
+  } else tip.style.display = 'none';
+}
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+/* ============================================================
+   MAIN LOOP
+============================================================ */
+const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+if(REDUCED){ rainOn = false; rain.visible = false;
+  const b = document.getElementById('rainBtn'); b.textContent = '[ RAIN: OFF ]'; b.classList.remove('on'); }
+const clock = new THREE.Clock();
+
+function animate(){
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const now = performance.now();
+
+  if(!REDUCED && !dragging && now - lastInteract > 2200) camTheta += dt * 0.06;
+
+  const cy = Math.max(cityBounds.h * 0.5, 2);
+  camera.position.set(
+    Math.sin(camTheta) * Math.cos(camPhi) * camR,
+    Math.sin(camPhi) * camR + 1,
+    Math.cos(camTheta) * Math.cos(camPhi) * camR
+  );
+  camera.lookAt(0, cy, 0);
+
+  neonA.position.x = Math.sin(now*0.0003) * cityBounds.x * 0.8;
+  neonB.position.z = Math.cos(now*0.00025) * cityBounds.z * 0.8;
+
+  /* blinking rooftop beacons */
+  for(const b of beacons){
+    b.spr.material.opacity = 0.25 + 0.75 * (0.5 + 0.5*Math.sin(now*0.004 + b.phase));
+  }
+
+  if(trafficPts && trafficData && !REDUCED){
+    const attr = trafficPts.geometry.attributes.position;
+    for(let i=0;i<trafficData.length;i++){
+      const t = trafficData[i];
+      t.p += t.speed * dt * 6;
+      const lim = t.alongX ? cityBounds.x : cityBounds.z;
+      if(t.p > lim) t.p = -lim;
+      if(t.p < -lim) t.p = lim;
+      if(t.alongX) attr.setXYZ(i, t.p, t.alt, t.lane);
+      else attr.setXYZ(i, t.lane, t.alt, t.p);
+    }
+    attr.needsUpdate = true;
+  }
+
+  /* rain */
+  if(rainOn){
+    const rp = rain.geometry.attributes.position;
+    for(let i=0;i<RAIN_N;i++){
+      let y = rp.getY(i*2) - rainSpd[i]*dt;
+      if(y < 0){
+        y = 16 + Math.random()*3;
+        const x = (Math.random()*2-1)*(cityBounds.x+8), z = (Math.random()*2-1)*(cityBounds.z+8);
+        rp.setXYZ(i*2, x, y, z); rp.setXYZ(i*2+1, x, y+0.38, z);
+      } else {
+        rp.setY(i*2, y); rp.setY(i*2+1, y+0.38);
+      }
+    }
+    rp.needsUpdate = true;
+  }
+
+  renderer.render(scene, camera);
+}
+
+const boot = demoDays();
+buildCity(boot); updateStats(boot);
+animate();
+
+})();
+</script>
+</body>
+</html>
